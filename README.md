@@ -71,3 +71,5 @@ El `testng.xml` define los parámetros:
 - `deviceName`: emulator-5554
 - `appPackage`: com.flowersapp
 - `appActivity`: .ui.LoginActivity
+
+<!-- lastupdate: 2026-08-18 21:18 -->
