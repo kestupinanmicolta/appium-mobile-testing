@@ -1,0 +1,28 @@
+{
+  "name": "appium-serenity-mobile",
+  "version": "1.0.0",
+  "description": "Mobile testing with Serenity.js, Appium and TypeScript",
+  "scripts": {
+    "test": "npx serenity-js run",
+    "test:login": "npx serenity-js run --tags @login",
+    "test:catalog": "npx serenity-js run --tags @catalog",
+    "test:cart": "npx serenity-js run --tags @cart",
+    "report": "npx serenity-js report",
+    "clean": "rm -rf target"
+  },
+  "dependencies": {
+    "@cucumber/cucumber": "^10.3.0",
+    "@serenity-js/assertions": "^3.28.0",
+    "@serenity-js/console-reporter": "^3.28.0",
+    "@serenity-js/core": "^3.28.0",
+    "@serenity-js/cucumber": "^3.28.0",
+    "@serenity-js/webdriverio": "^3.28.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "appium": "^2.5.0",
+    "appium-uiautomator2-driver": "^3.0.0",
+    "typescript": "^5.3.0",
+    "webdriverio": "^8.27.0"
+  }
+}

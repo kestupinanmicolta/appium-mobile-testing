@@ -22,15 +22,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
       - name: Clone FlowersApp
         run: git clone https://github.com/kestupinanmicolta/FlowersApp.git /tmp/FlowersApp
 
       - name: Build FlowersApp APK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Build APK
         working-directory: /tmp/FlowersApp
         run: |
           chmod +x gradlew
@@ -47,12 +48,10 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install Appium
-        run: |
-          npm install -g appium
-          appium driver install uiautomator2
+      - name: Install dependencies
+        run: npm install
 
-      - name: Run tests on Emulator
+      - name: Setup Android Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
@@ -69,19 +68,18 @@ jobs:
             sleep 5
 
             echo "Starting Appium server..."
-            appium --port 4723 &
-            sleep 15
+            npx appium --port 4723 &
+            sleep 10
 
-            echo "Running Maven tests..."
-            mvn clean test -f pom.xml || true
+            echo "Running Serenity.js tests..."
+            npm test || true
 
-      - name: Generate Allure Report
+      - name: Generate Serenity Report
         if: always()
         run: |
-          npm install -g allure-commandline
           mkdir -p public
-          if [ -d target/allure-results ] && [ "$(ls -A target/allure-results 2>/dev/null)" ]; then
-            allure generate target/allure-results --clean -o public || true
+          if [ -d target/site/serenity ] && [ "$(ls -A target/site/serenity 2>/dev/null)" ]; then
+            cp -r target/site/serenity/* public/ || true
           fi
           if [ ! -f public/index.html ]; then
             cat > public/index.html << 'EOF'
@@ -99,10 +97,10 @@ jobs:
           .features li i{color:#10b981;font-size:.7rem}
           .btn{display:inline-flex;align-items:center;gap:.5rem;background:#0f172a;color:white;padding:.6rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:600;font-size:.85rem;margin-top:.5rem}
           .footer{text-align:center;padding:1.5rem;font-size:.75rem;color:#94a3b8}</style></head><body>
-          <div class="header"><h1><i class="fas fa-mobile-alt"></i> Appium Mobile Testing</h1><p>Android Emulator Tests — FlowersApp</p></div>
+          <div class="header"><h1><i class="fas fa-mobile-alt"></i> Appium Mobile Testing</h1><p>Serenity.js + TypeScript — FlowersApp</p></div>
           <div class="container">
           <div class="card"><h2><i class="fas fa-info-circle"></i> Test Execution</h2>
-          <p style="font-size:.85rem;color:#475569">Tests executed on Android emulator (API 29, Pixel 7 Pro, Google APIs) with Appium UiAutomator2.</p></div>
+          <p style="font-size:.85rem;color:#475569">BDD tests executed on Android emulator (API 29, Pixel 7 Pro) with Appium UiAutomator2 and Serenity.js Screenplay Pattern.</p></div>
           <div class="card"><h2><i class="fas fa-check-circle"></i> Test Coverage</h2>
           <ul class="features">
             <li><i class="fas fa-check"></i> Login - Successful and failed authentication</li>
