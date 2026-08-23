@@ -1,6 +1,5 @@
 import { Actor, Task } from '@serenity-js/core';
 import { BrowseTheWeb } from '@serenity-js/webdriverio';
-import { by } from 'webdriverio';
 
 export class Login {
     static withCredentials(email: string, password: string) {
