@@ -1,6 +1,6 @@
 import { Actor, Interaction } from '@serenity-js/core';
 import { BrowseTheWeb } from '@serenity-js/webdriverio';
-import { remote, RemoteOptions } from 'webdriverio';
+import { remote } from 'webdriverio';
 
 const appiumServer = process.env.APPIUM_SERVER || 'http://localhost:4723';
 
@@ -9,7 +9,7 @@ export class UseTheApp extends Interaction {
         return {
             configuredBy: async (actor: Actor) => {
                 const url = new URL(appiumServer);
-                const options: RemoteOptions = {
+                const options = {
                     hostname: url.hostname,
                     port: parseInt(url.port || '4723'),
                     path: '/',
