@@ -3,17 +3,16 @@
   "version": "1.0.0",
   "description": "Mobile testing with Serenity.js, Appium and TypeScript",
   "scripts": {
-    "test": "serenity-js run",
-    "test:login": "serenity-js run --tags @login",
-    "test:catalog": "serenity-js run --tags @catalog",
-    "test:cart": "serenity-js run --tags @cart",
-    "report": "serenity-js report",
+    "test": "cucumber-js",
+    "test:login": "cucumber-js --tags @login",
+    "test:catalog": "cucumber-js --tags @catalog",
+    "test:cart": "cucumber-js --tags @cart",
+    "report": "serenity-bdd run",
     "clean": "rm -rf target"
   },
   "dependencies": {
     "@cucumber/cucumber": "^10.3.0",
     "@serenity-js/assertions": "^3.43.0",
-    "@serenity-js/cli": "^3.43.0",
     "@serenity-js/console-reporter": "^3.43.0",
     "@serenity-js/core": "^3.43.0",
     "@serenity-js/cucumber": "^3.43.0",
