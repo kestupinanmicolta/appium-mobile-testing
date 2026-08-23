@@ -1,75 +1,100 @@
 # Appium Mobile Testing
 
-Suite completa de testing móvil con Appium para Android. Incluye tests de login, catálogo y carrito contra la app FlowersApp.
+Suite completa de testing móvil con Appium para Android usando **Serenity.js** y **TypeScript**. Incluye tests de login, catálogo y carrito contra la app FlowersApp.
 
 ## Características
 
-- **Appium 9**: Testing móvil cross-platform
-- **Android**: Pruebas en emulador o dispositivo real
-- **Page Object Model**: Arquitectura mantenible
-- **TestNG**: Organización de tests
-- **Allure Reports**: Reportes visuales detallados
+- **Serenity.js**: Framework BDD con Screenplay Pattern
+- **Appium 2**: Testing móvil cross-platform
+- **TypeScript**: Type safety y mejor DX
+- **Cucumber**: BDD con Gherkin
+- **Android**: Pruebas en emulador (API 29, Pixel 7 Pro)
+- **Screenplay Pattern**: Arquitectura mantenible (Actors, Tasks, Questions, Interactions)
+- **Serenity Reports**: Reportes HTML interactivos
 
 ## Requisitos
 
-- JDK 21
-- Appium Server instalado (`npm install -g appium`)
+- Node.js 18+
+- Appium Server (`npm install -g appium`)
 - Android SDK con emulador
-- Drivers de Appium (`appium driver install uiautomator2`)
+- Driver UiAutomator2 (`appium driver install uiautomator2`)
 
 ## Instalación
 
 ```bash
-# Instalar Appium
+# Instalar dependencias
+npm install
+
+# Instalar Appium globalmente (opcional)
 npm install -g appium
 
 # Instalar driver de Android
 appium driver install uiautomator2
-
-# Iniciar servidor Appium
-appium
 ```
 
 ## Ejecución
 
 ```bash
 # Ejecutar todos los tests
-mvn clean test
+npm test
 
-# Ejecutar con Allure
-mvn clean test
-mvn allure:serve
+# Ejecutar solo tests de login
+npm run test:login
+
+# Ejecutar solo tests de catálogo
+npm run test:catalog
+
+# Ejecutar solo tests de carrito
+npm run test:cart
+
+# Generar reporte
+npm run report
 ```
 
-## Configuración del emulador
-
-1. Abrir Android Studio
-2. Tools > Device Manager
-3. Crear/iniciar un emulador (Pixel 5, API 33+)
-
-## Estructura
+## Estructura del Proyecto
 
 ```
-src/test/java/com/karen/mobile/
-├── pages/
-│   ├── LoginPage.java
-│   ├── CatalogPage.java
-│   └── CartPage.java
-├── tests/
-│   ├── LoginTest.java
-│   ├── CatalogTest.java
-│   └── CartTest.java
-└── utils/
-    └── DriverManager.java
+├── src/
+│   ├── features/              # Cucumber feature files
+│   │   ├── login.feature
+│   │   ├── catalog.feature
+│   │   └── cart.feature
+│   └── screenplay/            # Screenplay Pattern
+│       ├── actors/
+│       │   └── Performer.ts
+│       ├── interactions/
+│       │   └── UseTheApp.ts
+│       ├── tasks/
+│       │   ├── Login.ts
+│       │   ├── BrowseCatalog.ts
+│       │   └── ManageCart.ts
+│       └── questions/
+│           ├── CatalogItems.ts
+│           ├── CartItems.ts
+│           └── LoginStatus.ts
+├── test/
+│   └── steps/                 # Step definitions
+│       ├── login.steps.ts
+│       ├── catalog.steps.ts
+│       └── cart.steps.ts
+├── serenity.conf.js           # Configuración Serenity.js
+├── tsconfig.json              # Configuración TypeScript
+└── package.json
 ```
 
 ## Configuración
 
-El `testng.xml` define los parámetros:
-- `platformName`: Android
-- `automationName`: UiAutomator2
-- `deviceName`: emulator-5554
-- `appPackage`: com.flowersapp
-- `appActivity`: .ui.LoginActivity
+`serenity.conf.js` define las capacidades del emulador:
+- **platformName**: Android
+- **automationName**: UiAutomator2
+- **deviceName**: emulator-5554
+- **appPackage**: com.flowersapp
+- **appActivity**: .ui.LoginActivity
 
-<!-- lastupdate: 2026-08-18 21:18 -->
+## Reportes
+
+Los reportes se generan en `target/site/serenity/` y se despliegan automáticamente a GitHub Pages.
+
+**Ver reporte en vivo**: https://kestupinanmicolta.github.io/appium-mobile-testing/
+
+<!-- lastupdate: 2026-08-23 -->
