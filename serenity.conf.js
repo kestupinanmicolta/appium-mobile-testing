@@ -1,4 +1,3 @@
-const { serenity } = require('@serenity-js/core');
 const { ConsoleReporter } = require('@serenity-js/console-reporter');
 const { ArtifactArchiver } = require('@serenity-js/core');
 
@@ -8,7 +7,10 @@ module.exports = {
         cucumber: {
             features: 'src/features/**/*.feature',
             stepDefinitions: 'test/steps/**/*.ts',
-            require: ['test/steps/**/*.ts'],
+            require: [
+                'ts-node/register',
+                'test/steps/**/*.ts',
+            ],
         },
     },
     actors: {
