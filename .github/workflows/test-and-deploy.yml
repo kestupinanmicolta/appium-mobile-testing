@@ -62,24 +62,36 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            echo "Emulator booted. Installing APK..."
+            echo "=== Emulator booted ==="
+            
+            echo "Installing APK..."
             adb install /tmp/FlowersApp/app/build/outputs/apk/debug/app-debug.apk
+            
+            echo "Starting FlowersApp..."
             adb shell am start -n com.flowersapp/.ui.LoginActivity
             sleep 5
-
+            
             echo "Starting Appium server..."
             npx appium --port 4723 &
-            sleep 10
-
-            echo "Running Serenity.js tests..."
+            APPIUM_PID=$!
+            sleep 15
+            
+            echo "Checking Appium health..."
+            curl -s http://localhost:4723/status || echo "Appium not ready yet"
+            sleep 5
+            
+            echo "Running tests..."
             npm test || true
+            
+            echo "Killing Appium..."
+            kill $APPIUM_PID 2>/dev/null || true
 
       - name: Generate Serenity Report
         if: always()
         run: |
           mkdir -p public
-          if [ -d target/site/serenity ] && [ "$(ls -A target/site/serenity 2>/dev/null)" ]; then
-            cp -r target/site/serenity/* public/ || true
+          if [ -d reports/serenity-js ] && [ "$(ls -A reports/serenity-js 2>/dev/null)" ]; then
+            cp -r reports/serenity-js/* public/ || true
           fi
           if [ ! -f public/index.html ]; then
             cat > public/index.html << 'EOF'
@@ -97,10 +109,10 @@ jobs:
           .features li i{color:#10b981;font-size:.7rem}
           .btn{display:inline-flex;align-items:center;gap:.5rem;background:#0f172a;color:white;padding:.6rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:600;font-size:.85rem;margin-top:.5rem}
           .footer{text-align:center;padding:1.5rem;font-size:.75rem;color:#94a3b8}</style></head><body>
-          <div class="header"><h1><i class="fas fa-mobile-alt"></i> Appium Mobile Testing</h1><p>Serenity.js + TypeScript — FlowersApp</p></div>
+          <div class="header"><h1><i class="fas fa-mobile-alt"></i> Appium Mobile Testing</h1><p>Serenity.js + WebdriverIO + TypeScript — FlowersApp</p></div>
           <div class="container">
           <div class="card"><h2><i class="fas fa-info-circle"></i> Test Execution</h2>
-          <p style="font-size:.85rem;color:#475569">BDD tests executed on Android emulator (API 29, Pixel 7 Pro) with Appium UiAutomator2 and Serenity.js Screenplay Pattern.</p></div>
+          <p style="font-size:.85rem;color:#475569">BDD tests executed on Android emulator (API 29, Pixel 7 Pro) with Appium UiAutomator2, WebdriverIO and Serenity.js Screenplay Pattern.</p></div>
           <div class="card"><h2><i class="fas fa-check-circle"></i> Test Coverage</h2>
           <ul class="features">
             <li><i class="fas fa-check"></i> Login - Successful and failed authentication</li>

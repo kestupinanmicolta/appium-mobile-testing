@@ -9,14 +9,14 @@ export const config: WebdriverIOConfig = {
         runner: 'cucumber',
         crew: [
             '@serenity-js/console-reporter',
-            ['@serenity-js/html-reporter', { specDirectory: './src/features' }],
+            ['@serenity-js/html-reporter', { specDirectory: './features' }],
         ],
     },
 
     automationProtocol: 'appium',
 
     specs: [
-        './src/features/**/*.feature',
+        './features/**/*.feature',
     ],
 
     maxInstances: 1,
@@ -44,8 +44,8 @@ export const config: WebdriverIOConfig = {
 
     cucumberOpts: {
         require: [
-            './test/support/*.ts',
-            './test/steps/*.ts',
+            './features/support/*.ts',
+            './features/step-definitions/*.ts',
         ],
         format: [],
         profile: '',
