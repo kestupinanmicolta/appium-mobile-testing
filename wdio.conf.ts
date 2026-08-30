@@ -1,7 +1,5 @@
 import { WebdriverIOConfig } from '@serenity-js/webdriverio';
 
-const appiumServer = process.env.APPIUM_SERVER || 'http://localhost:4723';
-
 export const config: WebdriverIOConfig = {
     framework: '@serenity-js/webdriverio',
 
@@ -12,8 +10,6 @@ export const config: WebdriverIOConfig = {
             ['@serenity-js/html-reporter', { specDirectory: './features' }],
         ],
     },
-
-    automationProtocol: 'appium',
 
     specs: [
         './features/**/*.feature',
@@ -32,15 +28,15 @@ export const config: WebdriverIOConfig = {
         'appium:newCommandTimeout': 300,
     }],
 
-    hostname: new URL(appiumServer).hostname,
-    port: parseInt(new URL(appiumServer).port || '4723'),
+    hostname: '127.0.0.1',
+    port: 4723,
     path: '/',
 
     logLevel: 'error',
     bail: 0,
-    waitforTimeout: 10000,
+    waitforTimeout: 30000,
     connectionRetryTimeout: 120000,
-    connectionRetryCount: 3,
+    connectionRetryCount: 5,
 
     cucumberOpts: {
         require: [
