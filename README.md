@@ -1,100 +1,67 @@
 # Appium Mobile Testing
 
-Suite completa de testing móvil con Appium para Android usando **Serenity.js** y **TypeScript**. Incluye tests de login, catálogo y carrito contra la app FlowersApp.
+Testing móvil con **Appium**, **WebdriverIO** y **Cucumber** para la app Android **FlowersApp** (FlorAbby). Incluye 9 escenarios BDD que cubren login, catálogo y carrito.
 
-## Características
+## Tecnologías
 
-- **Serenity.js**: Framework BDD con Screenplay Pattern
-- **Appium 2**: Testing móvil cross-platform
-- **TypeScript**: Type safety y mejor DX
-- **Cucumber**: BDD con Gherkin
-- **Android**: Pruebas en emulador (API 29, Pixel 7 Pro)
-- **Screenplay Pattern**: Arquitectura mantenible (Actors, Tasks, Questions, Interactions)
-- **Serenity Reports**: Reportes HTML interactivos
+- **Appium 2** + UiAutomator2 — testing móvil nativo Android
+- **WebdriverIO v9** — test runner y cliente WebDriver
+- **Cucumber** — BDD con Gherkin
+- **TypeScript** — tipado estático
 
 ## Requisitos
 
 - Node.js 18+
-- Appium Server (`npm install -g appium`)
-- Android SDK con emulador
+- Appium Server (puerto 4723)
+- Android SDK con emulador o dispositivo físico
 - Driver UiAutomator2 (`appium driver install uiautomator2`)
 
 ## Instalación
 
 ```bash
-# Instalar dependencias
 npm install
-
-# Instalar Appium globalmente (opcional)
-npm install -g appium
-
-# Instalar driver de Android
-appium driver install uiautomator2
 ```
 
 ## Ejecución
 
 ```bash
+# Asegurar que Appium esté corriendo en puerto 4723
+npx appium &
+
 # Ejecutar todos los tests
 npm test
-
-# Ejecutar solo tests de login
-npm run test:login
-
-# Ejecutar solo tests de catálogo
-npm run test:catalog
-
-# Ejecutar solo tests de carrito
-npm run test:cart
-
-# Generar reporte
-npm run report
 ```
 
-## Estructura del Proyecto
+## Estrucura
 
 ```
-├── src/
-│   ├── features/              # Cucumber feature files
-│   │   ├── login.feature
-│   │   ├── catalog.feature
-│   │   └── cart.feature
-│   └── screenplay/            # Screenplay Pattern
-│       ├── actors/
-│       │   └── Performer.ts
-│       ├── interactions/
-│       │   └── UseTheApp.ts
-│       ├── tasks/
-│       │   ├── Login.ts
-│       │   ├── BrowseCatalog.ts
-│       │   └── ManageCart.ts
-│       └── questions/
-│           ├── CatalogItems.ts
-│           ├── CartItems.ts
-│           └── LoginStatus.ts
-├── test/
-│   └── steps/                 # Step definitions
-│       ├── login.steps.ts
-│       ├── catalog.steps.ts
-│       └── cart.steps.ts
-├── serenity.conf.js           # Configuración Serenity.js
-├── tsconfig.json              # Configuración TypeScript
-└── package.json
+├── features/
+│   ├── flowersapp.feature          # 9 escenarios BDD
+│   └── step-definitions/
+│       └── steps.ts                # Implementación de steps
+├── wdio.conf.ts                    # Configuración WebdriverIO
+├── tsconfig.json                   # Configuración TypeScript
+├── package.json
+└── .github/workflows/
+    └── test-and-deploy.yml         # CI/CD + GitHub Pages
 ```
 
-## Configuración
+## Escenarios
 
-`serenity.conf.js` define las capacidades del emulador:
-- **platformName**: Android
-- **automationName**: UiAutomator2
-- **deviceName**: emulator-5554
-- **appPackage**: com.flowersapp
-- **appActivity**: .ui.LoginActivity
+| # | Módulo | Escenario | Descripción |
+|---|--------|-----------|-------------|
+| 1 | Login | Password corta | Valida que < 6 caracteres muestra error |
+| 2 | Login | Credenciales inválidas | Valida error de autenticación |
+| 3 | Login | Login exitoso | Valida navegación al catálogo |
+| 4 | Catálogo | Listar productos | Verifica que hay al menos 1 producto |
+| 5 | Catálogo | Ver detalle | Click en producto muestra detalle |
+| 6 | Catálogo | Filtrar categoría | Filtra por categoría específica |
+| 7 | Catálogo | Ir al carrito | Navega del catálogo al carrito |
+| 8 | Carrito | Ver carrito | Verifica pantalla de carrito |
+| 9 | Carrito | Volver del carrito | Navega de vuelta al catálogo |
 
-## Reportes
+## Reporte
 
-Los reportes se generan en `target/site/serenity/` y se despliegan automáticamente a GitHub Pages.
+**Ver en vivo**: https://kestupinanmicolta.github.io/appium-mobile-testing/
 
-**Ver reporte en vivo**: https://kestupinanmicolta.github.io/appium-mobile-testing/
-
-<!-- lastupdate: 2026-08-23 -->
+<!-- lastupdate: 2026-08-30 -->

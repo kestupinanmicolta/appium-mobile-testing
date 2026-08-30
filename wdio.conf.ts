@@ -1,18 +1,26 @@
-import { WebdriverIOConfig } from '@serenity-js/webdriverio';
+import type { Options } from '@wdio/types';
+import { execSync } from 'child_process';
 
-export const config: WebdriverIOConfig = {
-    framework: '@serenity-js/webdriverio',
+const adbPath = 'C:\\Users\\pacho\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe';
+const deviceId = '6PW4USGAJF9XCU4P';
 
-    serenity: {
-        runner: 'cucumber',
-        crew: [
-            '@serenity-js/console-reporter',
-            ['@serenity-js/html-reporter', { specDirectory: './features' }],
-        ],
+function runAdb(command: string) {
+    try {
+        execSync(`"${adbPath}" -s ${deviceId} ${command}`, { stdio: 'pipe' });
+    } catch {}
+}
+
+export const config: Options.Testrunner = {
+    runner: 'local',
+
+    autoCompileOpts: {
+        tsNodeOpts: {
+            project: './tsconfig.json',
+        },
     },
 
     specs: [
-        './features/**/*.feature',
+        './features/flowersapp.feature',
     ],
 
     maxInstances: 1,
@@ -20,7 +28,7 @@ export const config: WebdriverIOConfig = {
     capabilities: [{
         platformName: 'Android',
         'appium:automationName': 'UiAutomator2',
-        'appium:deviceName': 'emulator-5554',
+        'appium:deviceName': '6PW4USGAJF9XCU4P',
         'appium:appPackage': 'com.flowersapp',
         'appium:appActivity': '.ui.LoginActivity',
         'appium:noReset': false,
@@ -32,20 +40,29 @@ export const config: WebdriverIOConfig = {
     port: 4723,
     path: '/',
 
-    logLevel: 'error',
+    logLevel: 'warn',
     bail: 0,
     waitforTimeout: 30000,
     connectionRetryTimeout: 120000,
     connectionRetryCount: 5,
 
+    framework: 'cucumber',
+
+    onPrepare: function () {
+        // Disable Google Autofill service before tests
+        runAdb('shell settings put secure autofill_service null');
+        runAdb('shell settings put secure enabled_accessibility_services null');
+        // Kill the app to start fresh
+        runAdb('shell am force-stop com.flowersapp');
+    },
+
     cucumberOpts: {
-        require: [
-            './features/support/*.ts',
+        import: [
             './features/step-definitions/*.ts',
         ],
-        format: [],
+        format: ['progress'],
         profile: '',
-        strict: false,
+        strict: true,
         tags: [],
         timeout: 60000,
     },
