@@ -29,7 +29,7 @@ jobs:
       - name: Clone FlowersApp
         run: git clone https://github.com/kestupinanmicolta/FlowersApp.git /tmp/FlowersApp
 
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -37,9 +37,7 @@ jobs:
 
       - name: Build APK
         working-directory: /tmp/FlowersApp
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
+        run: chmod +x gradlew && ./gradlew assembleDebug
 
       - name: Enable KVM
         run: |
@@ -52,49 +50,43 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install Android SDK
+        run: |
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          cd $ANDROID_HOME/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+          unzip -q cmdline-tools.zip
+          mv cmdline-tools latest
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses > /dev/null 2>&1 || true
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-29" "system-images;android-29;google_apis;x86_64" "emulator" 2>&1 | tail -5
 
-      - name: Run tests on emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        timeout-minutes: 12
-        with:
-          api-level: 29
-          target: google_apis
-          arch: x86_64
-          profile: pixel_7_pro
-          force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
-          script: |
-            echo "=== Emulator booted ==="
-            adb install /tmp/FlowersApp/app/build/outputs/apk/debug/app-debug.apk
-            adb shell am start -n com.flowersapp/.ui.LoginActivity
-            sleep 5
+      - name: Create AVD & Boot Emulator
+        run: |
+          echo "no" | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/avdmanager create avd -n test_avd -k "system-images;android-29;google_apis;x86_64" --device "pixel_7" --force
+          /usr/local/lib/android/sdk/emulator/emulator -avd test_avd -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 2048 &
+          echo "Waiting for emulator to boot..."
+          timeout 180 bash -c 'until /usr/local/lib/android/sdk/platform-tools/adb shell getprop sys.boot_completed 2>/dev/null | grep -q "1"; do sleep 5; done'
+          echo "Emulator booted!"
+          /usr/local/lib/android/sdk/platform-tools/adb shell settings put secure autofill_service null
+          /usr/local/lib/android/sdk/platform-tools/adb install /tmp/FlowersApp/app/build/outputs/apk/debug/app-debug.apk
+          /usr/local/lib/android/sdk/platform-tools/adb shell am start -n com.flowersapp/.ui.LoginActivity
+          sleep 3
 
-            echo "Starting Appium server..."
-            npx appium --port 4723 &
-            APPIUM_PID=$!
-            sleep 15
-
-            echo "Running tests..."
-            npm test || true
-
-            echo "Killing Appium..."
-            kill $APPIUM_PID 2>/dev/null || true
+      - name: Start Appium & Run Tests
+        timeout-minutes: 8
+        run: |
+          npx appium --port 4723 &
+          APPIUM_PID=$!
+          sleep 15
+          npm test || true
+          kill $APPIUM_PID 2>/dev/null || true
 
       - name: Collect screenshots
         if: always()
         run: |
           mkdir -p public
-          SCREENSHOTS_DIR="screenshots"
-          if [ -d "$SCREENSHOTS_DIR" ] && [ "$(ls -A $SCREENSHOTS_DIR 2>/dev/null)" ]; then
-            echo "Found $(ls $SCREENSHOTS_DIR/*.png 2>/dev/null | wc -l) screenshots"
-            for f in $SCREENSHOTS_DIR/*.png; do
-              name=$(basename "$f")
-              b64=$(base64 -w 0 "$f")
-              echo "SCREENSHOT_${name}=${b64}" >> $GITHUB_ENV
-            done
+          if [ -d "screenshots" ] && [ "$(ls -A screenshots 2>/dev/null)" ]; then
+            echo "Found $(ls screenshots/*.png 2>/dev/null | wc -l) screenshots"
           else
             echo "No screenshots found"
           fi
@@ -102,11 +94,9 @@ jobs:
       - name: Generate HTML Report
         if: always()
         run: |
-          SCREENSHOTS_DIR="screenshots"
           SCREENSHOT_HTML=""
-
-          if [ -d "$SCREENSHOTS_DIR" ] && [ "$(ls -A $SCREENSHOTS_DIR 2>/dev/null)" ]; then
-            for f in $SCREENSHOTS_DIR/*.png; do
+          if [ -d "screenshots" ] && [ "$(ls -A screenshots 2>/dev/null)" ]; then
+            for f in screenshots/*.png; do
               name=$(basename "$f" .png)
               status=$(echo "$name" | cut -d'_' -f1)
               title=$(echo "$name" | cut -d'_' -f2- | tr '_' ' ')
@@ -128,7 +118,7 @@ jobs:
             done
           fi
 
-          cat > public/index.html << HTMLEOF
+          cat > public/index.html << 'HTMLEOF'
           <!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
           <title>Appium Mobile Testing Report</title>
           <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -145,18 +135,16 @@ jobs:
             .scenario-header h3{font-size:.95rem;color:#0f172a}
             .badge{padding:.2rem .6rem;border-radius:4px;font-size:.7rem;font-weight:600;color:white}
             .screenshot{width:100%;border-radius:8px;border:1px solid #e2e8f0}
-            .features{list-style:none}.features li{padding:.4rem 0;font-size:.85rem;color:#475569;display:flex;align-items:center;gap:.5rem}
-            .features li i{color:#10b981;font-size:.7rem}
-            .btn{display:inline-flex;align-items:center;gap:.5rem;background:#0f172a;color:white;padding:.6rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:600;font-size:.85rem;margin-top:.5rem}
-            .footer{text-align:center;padding:1.5rem;font-size:.75rem;color:#94a3b8}
             table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:.5rem}
             th,td{padding:.5rem;text-align:left;border-bottom:1px solid #e2e8f0}
             th{color:#0f172a;font-weight:600}.pass{color:#10b981}
+            .btn{display:inline-flex;align-items:center;gap:.5rem;background:#0f172a;color:white;padding:.6rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:600;font-size:.85rem;margin-top:.5rem}
+            .footer{text-align:center;padding:1.5rem;font-size:.75rem;color:#94a3b8}
           </style></head><body>
           <div class="header"><h1><i class="fas fa-mobile-alt"></i> Appium Mobile Testing</h1><p>WebdriverIO + Cucumber + TypeScript — FlowersApp</p></div>
           <div class="container">
           <div class="card"><h2><i class="fas fa-info-circle"></i> Stack</h2>
-          <p style="font-size:.85rem;color:#475569">Native Android testing with Appium UiAutomator2, WebdriverIO v9, Cucumber BDD and TypeScript. Executed on Android emulator (API 29, Pixel 7 Pro) in GitHub Actions CI.</p></div>
+          <p style="font-size:.85rem;color:#475569">Native Android testing with Appium UiAutomator2, WebdriverIO v9, Cucumber BDD and TypeScript. Executed on Android emulator (API 29, Pixel 7) in GitHub Actions CI.</p></div>
           <div class="card"><h2><i class="fas fa-check-circle"></i> Test Coverage (9 scenarios)</h2>
           <table><thead><tr><th>Module</th><th>Scenario</th><th>Status</th></tr></thead><tbody>
             <tr><td>Login</td><td>Short password validation</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
@@ -170,11 +158,13 @@ jobs:
             <tr><td>Cart</td><td>Navigate back from cart</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
           </tbody></table></div>
           <div class="card"><h2><i class="fas fa-camera"></i> Test Screenshots</h2>
-          ${SCREENSHOT_HTML}
+          SCREENSHOT_PLACEHOLDER
           </div>
           <a href="https://github.com/kestupinanmicolta/appium-mobile-testing" class="btn"><i class="fab fa-github"></i> View Source Code</a>
           </div><div class="footer">2026 Karen Paola Estupinan Micolta</div></body></html>
           HTMLEOF
+
+          sed -i "s|SCREENSHOT_PLACEHOLDER|${SCREENSHOT_HTML}|" public/index.html
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
