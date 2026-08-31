@@ -1,4 +1,4 @@
-name: Deploy Report
+name: Test & Deploy Report
 on:
   push:
     branches: [main]
@@ -17,39 +17,146 @@ env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 jobs:
-  deploy:
+  test-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Generate Report
+      - uses: actions/checkout@v4
+
+      - name: Clone FlowersApp
+        run: git clone https://github.com/kestupinanmicolta/FlowersApp.git /tmp/FlowersApp
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Build APK
+        working-directory: /tmp/FlowersApp
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        timeout-minutes: 12
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            echo "=== Emulator booted ==="
+            adb install /tmp/FlowersApp/app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -n com.flowersapp/.ui.LoginActivity
+            sleep 5
+
+            echo "Starting Appium server..."
+            npx appium --port 4723 &
+            APPIUM_PID=$!
+            sleep 15
+
+            echo "Running tests..."
+            npm test || true
+
+            echo "Killing Appium..."
+            kill $APPIUM_PID 2>/dev/null || true
+
+      - name: Collect screenshots
+        if: always()
         run: |
           mkdir -p public
-          cat > public/index.html << 'HTMLEOF'
+          SCREENSHOTS_DIR="screenshots"
+          if [ -d "$SCREENSHOTS_DIR" ] && [ "$(ls -A $SCREENSHOTS_DIR 2>/dev/null)" ]; then
+            echo "Found $(ls $SCREENSHOTS_DIR/*.png 2>/dev/null | wc -l) screenshots"
+            for f in $SCREENSHOTS_DIR/*.png; do
+              name=$(basename "$f")
+              b64=$(base64 -w 0 "$f")
+              echo "SCREENSHOT_${name}=${b64}" >> $GITHUB_ENV
+            done
+          else
+            echo "No screenshots found"
+          fi
+
+      - name: Generate HTML Report
+        if: always()
+        run: |
+          SCREENSHOTS_DIR="screenshots"
+          SCREENSHOT_HTML=""
+
+          if [ -d "$SCREENSHOTS_DIR" ] && [ "$(ls -A $SCREENSHOTS_DIR 2>/dev/null)" ]; then
+            for f in $SCREENSHOTS_DIR/*.png; do
+              name=$(basename "$f" .png)
+              status=$(echo "$name" | cut -d'_' -f1)
+              title=$(echo "$name" | cut -d'_' -f2- | tr '_' ' ')
+              b64=$(base64 -w 0 "$f")
+              badge_color="#10b981"
+              badge_text="Pass"
+              if [ "$status" = "FAILED" ]; then
+                badge_color="#ef4444"
+                badge_text="Fail"
+              fi
+              SCREENSHOT_HTML="${SCREENSHOT_HTML}
+              <div class='card'>
+                <div class='scenario-header'>
+                  <span class='badge' style='background:${badge_color}'>${badge_text}</span>
+                  <h3>${title}</h3>
+                </div>
+                <img src='data:image/png;base64,${b64}' alt='${title}' class='screenshot' />
+              </div>"
+            done
+          fi
+
+          cat > public/index.html << HTMLEOF
           <!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
           <title>Appium Mobile Testing Report</title>
           <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
           <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-          <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:#f1f5f9;color:#1e293b}
-          .header{background:linear-gradient(135deg,#0f172a,#1e3a5f);color:white;padding:2rem;text-align:center}
-          .header h1{font-size:1.5rem}.header p{color:#60a5fa;margin-top:.25rem}
-          .container{max-width:800px;margin:2rem auto;padding:0 1rem}
-          .card{background:white;border-radius:12px;padding:1.5rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,.08)}
-          .card h2{font-size:1rem;margin-bottom:.75rem;color:#0f172a}
-          .features{list-style:none}.features li{padding:.4rem 0;font-size:.85rem;color:#475569;display:flex;align-items:center;gap:.5rem}
-          .features li i{color:#10b981;font-size:.7rem}
-          .btn{display:inline-flex;align-items:center;gap:.5rem;background:#0f172a;color:white;padding:.6rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:600;font-size:.85rem;margin-top:.5rem}
-          .footer{text-align:center;padding:1.5rem;font-size:.75rem;color:#94a3b8}
-          table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:.5rem}
-          th,td{padding:.5rem;text-align:left;border-bottom:1px solid #e2e8f0}
-          th{color:#0f172a;font-weight:600}
-          .pass{color:#10b981}</style></head><body>
+          <style>
+            *{margin:0;padding:0;box-sizing:border-box}
+            body{font-family:'Inter',sans-serif;background:#f1f5f9;color:#1e293b}
+            .header{background:linear-gradient(135deg,#0f172a,#1e3a5f);color:white;padding:2rem;text-align:center}
+            .header h1{font-size:1.5rem}.header p{color:#60a5fa;margin-top:.25rem}
+            .container{max-width:900px;margin:2rem auto;padding:0 1rem}
+            .card{background:white;border-radius:12px;padding:1.5rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+            .card h2{font-size:1rem;margin-bottom:.75rem;color:#0f172a}
+            .scenario-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem}
+            .scenario-header h3{font-size:.95rem;color:#0f172a}
+            .badge{padding:.2rem .6rem;border-radius:4px;font-size:.7rem;font-weight:600;color:white}
+            .screenshot{width:100%;border-radius:8px;border:1px solid #e2e8f0}
+            .features{list-style:none}.features li{padding:.4rem 0;font-size:.85rem;color:#475569;display:flex;align-items:center;gap:.5rem}
+            .features li i{color:#10b981;font-size:.7rem}
+            .btn{display:inline-flex;align-items:center;gap:.5rem;background:#0f172a;color:white;padding:.6rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:600;font-size:.85rem;margin-top:.5rem}
+            .footer{text-align:center;padding:1.5rem;font-size:.75rem;color:#94a3b8}
+            table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:.5rem}
+            th,td{padding:.5rem;text-align:left;border-bottom:1px solid #e2e8f0}
+            th{color:#0f172a;font-weight:600}.pass{color:#10b981}
+          </style></head><body>
           <div class="header"><h1><i class="fas fa-mobile-alt"></i> Appium Mobile Testing</h1><p>WebdriverIO + Cucumber + TypeScript — FlowersApp</p></div>
           <div class="container">
           <div class="card"><h2><i class="fas fa-info-circle"></i> Stack</h2>
-          <p style="font-size:.85rem;color:#475569">Native Android testing with Appium UiAutomator2, WebdriverIO v9, Cucumber BDD and TypeScript. Runs on Android emulator (API 29).</p></div>
+          <p style="font-size:.85rem;color:#475569">Native Android testing with Appium UiAutomator2, WebdriverIO v9, Cucumber BDD and TypeScript. Executed on Android emulator (API 29, Pixel 7 Pro) in GitHub Actions CI.</p></div>
           <div class="card"><h2><i class="fas fa-check-circle"></i> Test Coverage (9 scenarios)</h2>
           <table><thead><tr><th>Module</th><th>Scenario</th><th>Status</th></tr></thead><tbody>
             <tr><td>Login</td><td>Short password validation</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
@@ -62,6 +169,9 @@ jobs:
             <tr><td>Cart</td><td>View cart screen</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
             <tr><td>Cart</td><td>Navigate back from cart</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
           </tbody></table></div>
+          <div class="card"><h2><i class="fas fa-camera"></i> Test Screenshots</h2>
+          ${SCREENSHOT_HTML}
+          </div>
           <a href="https://github.com/kestupinanmicolta/appium-mobile-testing" class="btn"><i class="fab fa-github"></i> View Source Code</a>
           </div><div class="footer">2026 Karen Paola Estupinan Micolta</div></body></html>
           HTMLEOF

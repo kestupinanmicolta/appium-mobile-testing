@@ -1,14 +1,9 @@
 import type { Options } from '@wdio/types';
-import { execSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 
-const adbPath = 'C:\\Users\\pacho\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe';
-const deviceId = '6PW4USGAJF9XCU4P';
-
-function runAdb(command: string) {
-    try {
-        execSync(`"${adbPath}" -s ${deviceId} ${command}`, { stdio: 'pipe' });
-    } catch {}
-}
+const isCI = process.env.CI === 'true';
+const screenshotsDir = path.resolve(__dirname, 'screenshots');
 
 export const config: Options.Testrunner = {
     runner: 'local',
@@ -28,7 +23,7 @@ export const config: Options.Testrunner = {
     capabilities: [{
         platformName: 'Android',
         'appium:automationName': 'UiAutomator2',
-        'appium:deviceName': '6PW4USGAJF9XCU4P',
+        'appium:deviceName': isCI ? 'emulator-5554' : '6PW4USGAJF9XCU4P',
         'appium:appPackage': 'com.flowersapp',
         'appium:appActivity': '.ui.LoginActivity',
         'appium:noReset': false,
@@ -49,11 +44,23 @@ export const config: Options.Testrunner = {
     framework: 'cucumber',
 
     onPrepare: function () {
-        // Disable Google Autofill service before tests
-        runAdb('shell settings put secure autofill_service null');
-        runAdb('shell settings put secure enabled_accessibility_services null');
-        // Kill the app to start fresh
-        runAdb('shell am force-stop com.flowersapp');
+        if (!fs.existsSync(screenshotsDir)) {
+            fs.mkdirSync(screenshotsDir, { recursive: true });
+        }
+    },
+
+    afterScenario: async function (world: any) {
+        // @ts-ignore
+        const browser = globalThis.browser;
+        if (!browser) return;
+        try {
+            const scenarioName = world.pickle?.name || `scenario-${Date.now()}`;
+            const safeName = scenarioName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 60);
+            const status = world.result?.status || 'unknown';
+            const screenshot = await browser.takeScreenshot();
+            const filename = `${status}_${safeName}.png`;
+            fs.writeFileSync(path.join(screenshotsDir, filename), screenshot, 'base64');
+        } catch {}
     },
 
     cucumberOpts: {
