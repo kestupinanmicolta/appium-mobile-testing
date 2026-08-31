@@ -57,19 +57,23 @@ jobs:
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
           unzip -q cmdline-tools.zip
           mv cmdline-tools latest
-          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses > /dev/null 2>&1 || true
-          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-29" "system-images;android-29;google_apis;x86_64" "emulator" 2>&1 | tail -5
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses > /dev/null 2>&1 || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-29" "system-images;android-29;google_apis;x86_64" "emulator" 2>&1 | tail -5
 
       - name: Create AVD & Boot Emulator
         run: |
-          echo "no" | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/avdmanager create avd -n test_avd -k "system-images;android-29;google_apis;x86_64" --device "pixel_7" --force
-          /usr/local/lib/android/sdk/emulator/emulator -avd test_avd -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 2048 &
+          export ANDROID_AVD_HOME=$HOME/.android/avd
+          mkdir -p $ANDROID_AVD_HOME
+          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n test_avd -k "system-images;android-29;google_apis;x86_64" --device "pixel_7" --force
+          echo "AVD created at: $ANDROID_AVD_HOME"
+          ls -la $ANDROID_AVD_HOME/
+          $ANDROID_HOME/emulator/emulator -avd test_avd -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 2048 &
           echo "Waiting for emulator to boot..."
-          timeout 180 bash -c 'until /usr/local/lib/android/sdk/platform-tools/adb shell getprop sys.boot_completed 2>/dev/null | grep -q "1"; do sleep 5; done'
+          timeout 180 bash -c 'until $ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed 2>/dev/null | grep -q "1"; do sleep 5; done'
           echo "Emulator booted!"
-          /usr/local/lib/android/sdk/platform-tools/adb shell settings put secure autofill_service null
-          /usr/local/lib/android/sdk/platform-tools/adb install /tmp/FlowersApp/app/build/outputs/apk/debug/app-debug.apk
-          /usr/local/lib/android/sdk/platform-tools/adb shell am start -n com.flowersapp/.ui.LoginActivity
+          $ANDROID_HOME/platform-tools/adb shell settings put secure autofill_service null
+          $ANDROID_HOME/platform-tools/adb install /tmp/FlowersApp/app/build/outputs/apk/debug/app-debug.apk
+          $ANDROID_HOME/platform-tools/adb shell am start -n com.flowersapp/.ui.LoginActivity
           sleep 3
 
       - name: Start Appium & Run Tests
@@ -94,31 +98,31 @@ jobs:
       - name: Generate HTML Report
         if: always()
         run: |
-          SCREENSHOT_HTML=""
-          if [ -d "screenshots" ] && [ "$(ls -A screenshots 2>/dev/null)" ]; then
-            for f in screenshots/*.png; do
-              name=$(basename "$f" .png)
-              status=$(echo "$name" | cut -d'_' -f1)
-              title=$(echo "$name" | cut -d'_' -f2- | tr '_' ' ')
-              b64=$(base64 -w 0 "$f")
-              badge_color="#10b981"
-              badge_text="Pass"
-              if [ "$status" = "FAILED" ]; then
-                badge_color="#ef4444"
-                badge_text="Fail"
-              fi
-              SCREENSHOT_HTML="${SCREENSHOT_HTML}
-              <div class='card'>
-                <div class='scenario-header'>
-                  <span class='badge' style='background:${badge_color}'>${badge_text}</span>
-                  <h3>${title}</h3>
-                </div>
-                <img src='data:image/png;base64,${b64}' alt='${title}' class='screenshot' />
-              </div>"
-            done
-          fi
+          cat > /tmp/gen_report.py << 'PYEOF'
+          import os, base64, glob
 
-          cat > public/index.html << 'HTMLEOF'
+          screenshot_html = ''
+          pngs = sorted(glob.glob('screenshots/*.png'))
+          for f in pngs:
+              name = os.path.splitext(os.path.basename(f))[0]
+              parts = name.split('_', 1)
+              status = parts[0] if len(parts) > 0 else 'unknown'
+              title = parts[1].replace('_', ' ') if len(parts) > 1 else name
+              with open(f, 'rb') as img:
+                  b64 = base64.b64encode(img.read()).decode()
+              color = '#10b981' if status == 'PASSED' else '#ef4444'
+              text = 'Pass' if status == 'PASSED' else 'Fail'
+              screenshot_html += '<div class="card"><div class="scenario-header"><span class="badge" style="background:' + color + '">' + text + '</span><h3>' + title + '</h3></div><img src="data:image/png;base64,' + b64 + '" alt="' + title + '" class="screenshot" /></div>\n'
+
+          html = open('/tmp/template.html').read()
+          html = html.replace('SCREENSHOT_PLACEHOLDER', screenshot_html)
+          os.makedirs('public', exist_ok=True)
+          with open('public/index.html', 'w') as f:
+              f.write(html)
+          print(f'Report generated with {len(pngs)} screenshots')
+          PYEOF
+
+          cat > /tmp/template.html << 'HTMLEOF'
           <!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
           <title>Appium Mobile Testing Report</title>
           <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -164,7 +168,7 @@ jobs:
           </div><div class="footer">2026 Karen Paola Estupinan Micolta</div></body></html>
           HTMLEOF
 
-          sed -i "s|SCREENSHOT_PLACEHOLDER|${SCREENSHOT_HTML}|" public/index.html
+          python3 /tmp/gen_report.py
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
