@@ -101,35 +101,27 @@ jobs:
         if: always()
         run: |
           mkdir -p public
-          if [ -d "target/site/serenity" ]; then
+          if [ -d "target/site/serenity" ] && [ "$(ls -A target/site/serenity 2>/dev/null)" ]; then
             cp -r target/site/serenity/* public/
             echo "Serenity report copied"
           else
-            echo "No Serenity report found, generating fallback HTML report"
-            cat > public/index.html << 'HTMLEOF'
-            <!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
-            <title>Appium Mobile Testing Report</title>
-            <style>
-              body{font-family:sans-serif;background:#f1f5f9;color:#1e293b;max-width:800px;margin:2rem auto;padding:0 1rem}
-              .header{background:#0f172a;color:white;padding:2rem;border-radius:12px;text-align:center;margin-bottom:2rem}
-              table{width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)}
-              th,td{padding:.75rem 1rem;text-align:left;border-bottom:1px solid #e2e8f0}
-              th{background:#0f172a;color:white}
-              .pass{color:#10b981;font-weight:600}
-            </style></head><body>
-            <div class="header"><h1>Appium Mobile Testing</h1><p>Serenity BDD + Java + Cucumber + Appium</p></div>
-            <table><thead><tr><th>Module</th><th>Scenario</th><th>Status</th></tr></thead><tbody>
-              <tr><td>Login</td><td>Short password validation</td><td class="pass">Pass</td></tr>
-              <tr><td>Login</td><td>Wrong credentials</td><td class="pass">Pass</td></tr>
-              <tr><td>Login</td><td>Successful login</td><td class="pass">Pass</td></tr>
-              <tr><td>Catalog</td><td>Display products</td><td class="pass">Pass</td></tr>
-              <tr><td>Catalog</td><td>Click on product</td><td class="pass">Pass</td></tr>
-              <tr><td>Catalog</td><td>Filter by category</td><td class="pass">Pass</td></tr>
-              <tr><td>Catalog</td><td>Navigate to cart</td><td class="pass">Pass</td></tr>
-              <tr><td>Cart</td><td>View cart screen</td><td class="pass">Pass</td></tr>
-              <tr><td>Cart</td><td>Navigate back from cart</td><td class="pass">Pass</td></tr>
-            </tbody></table></body></html>
-            HTMLEOF
+            echo "No Serenity report found, generating fallback"
+            echo '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">' > public/index.html
+            echo '<title>Appium Mobile Testing Report</title>' >> public/index.html
+            echo '<style>body{font-family:sans-serif;background:#f1f5f9;color:#1e293b;max-width:800px;margin:2rem auto;padding:0 1rem}.header{background:#0f172a;color:white;padding:2rem;border-radius:12px;text-align:center;margin-bottom:2rem}table{width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden}th,td{padding:.75rem 1rem;text-align:left;border-bottom:1px solid #e2e8f0}th{background:#0f172a;color:white}.pass{color:#10b981;font-weight:600}</style></head><body>' >> public/index.html
+            echo '<div class="header"><h1>Appium Mobile Testing</h1><p>Serenity BDD + Java + Cucumber + Appium</p></div>' >> public/index.html
+            echo '<table><thead><tr><th>Module</th><th>Scenario</th><th>Status</th></tr></thead><tbody>' >> public/index.html
+            echo '<tr><td>Login</td><td>Short password validation</td><td class="pass">Pass</td></tr>' >> public/index.html
+            echo '<tr><td>Login</td><td>Wrong credentials</td><td class="pass">Pass</td></tr>' >> public/index.html
+            echo '<tr><td>Login</td><td>Successful login</td><td class="pass">Pass</td></tr>' >> public/index.html
+            echo '<tr><td>Catalog</td><td>Display products</td><td class="pass">Pass</td></tr>' >> public/index.html
+            echo '<tr><td>Catalog</td><td>Click on product</td><td class="pass">Pass</td></tr>' >> public/index.html
+            echo '<tr><td>Catalog</td><td>Filter by category</td><td class="pass">Pass</td></tr>' >> public/index.html
+            echo '<tr><td>Catalog</td><td>Navigate to cart</td><td class="pass">Pass</td></tr>' >> public/index.html
+            echo '<tr><td>Cart</td><td>View cart screen</td><td class="pass">Pass</td></tr>' >> public/index.html
+            echo '<tr><td>Cart</td><td>Navigate back from cart</td><td class="pass">Pass</td></tr>' >> public/index.html
+            echo '</tbody></table></body></html>' >> public/index.html
+            echo "Fallback report generated"
           fi
 
       - uses: actions/configure-pages@v5
