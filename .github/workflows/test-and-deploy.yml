@@ -67,11 +67,18 @@ jobs:
           $ANDROID_HOME/emulator/emulator -avd test_avd -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 2048 &
           echo "Waiting for emulator to boot..."
           timeout 180 bash -c 'until $ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed 2>/dev/null | grep -q "1"; do sleep 5; done'
-          echo "Emulator booted!"
-          $ANDROID_HOME/platform-tools/adb shell settings put secure autofill_service null
-          $ANDROID_HOME/platform-tools/adb install /tmp/FlowersApp/app/build/outputs/apk/debug/app-debug.apk
+          echo "Emulator booted, waiting for system to stabilize..."
+          sleep 15
+          $ANDROID_HOME/platform-tools/adb wait-for-device
+          $ANDROID_HOME/platform-tools/adb shell settings put secure autofill_service null || true
+          echo "Installing APK..."
+          timeout 60 $ANDROID_HOME/platform-tools/adb install -r -g /tmp/FlowersApp/app/build/outputs/apk/debug/app-debug.apk
+          echo "APK installed, launching app..."
+          $ANDROID_HOME/platform-tools/adb shell am force-stop com.flowersapp || true
+          sleep 2
           $ANDROID_HOME/platform-tools/adb shell am start -n com.flowersapp/.ui.LoginActivity
-          sleep 3
+          sleep 5
+          echo "Setup complete!"
 
       - name: Install Appium
         run: |
