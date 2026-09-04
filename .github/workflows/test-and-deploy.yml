@@ -13,13 +13,10 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
-env:
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
-
 jobs:
   test-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -35,7 +32,14 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Build APK
+      - name: Setup Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Build FlowersApp APK
         working-directory: /tmp/FlowersApp
         run: chmod +x gradlew && ./gradlew assembleDebug
 
@@ -44,11 +48,6 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
 
       - name: Install Android SDK
         run: |
@@ -65,8 +64,6 @@ jobs:
           export ANDROID_AVD_HOME=$HOME/.android/avd
           mkdir -p $ANDROID_AVD_HOME
           echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n test_avd -k "system-images;android-29;google_apis;x86_64" --device "pixel_7" --force
-          echo "AVD created at: $ANDROID_AVD_HOME"
-          ls -la $ANDROID_AVD_HOME/
           $ANDROID_HOME/emulator/emulator -avd test_avd -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 2048 &
           echo "Waiting for emulator to boot..."
           timeout 180 bash -c 'until $ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed 2>/dev/null | grep -q "1"; do sleep 5; done'
@@ -76,99 +73,57 @@ jobs:
           $ANDROID_HOME/platform-tools/adb shell am start -n com.flowersapp/.ui.LoginActivity
           sleep 3
 
-      - name: Start Appium & Run Tests
-        timeout-minutes: 8
+      - name: Install Appium
         run: |
-          npx appium --port 4723 &
+          npm install -g appium
+          appium driver install uiautomator2
+          echo "Appium version: $(appium --version)"
+
+      - name: Start Appium & Run Tests
+        timeout-minutes: 10
+        run: |
+          appium --port 4723 &
           APPIUM_PID=$!
           sleep 15
-          npm test || true
+          mvn clean verify -B 2>&1 | tee test_output.log
+          TEST_EXIT=$?
           kill $APPIUM_PID 2>/dev/null || true
+          echo "Maven exit code: $TEST_EXIT"
 
-      - name: Collect screenshots
+      - name: Collect Serenity Report
         if: always()
         run: |
           mkdir -p public
-          if [ -d "screenshots" ] && [ "$(ls -A screenshots 2>/dev/null)" ]; then
-            echo "Found $(ls screenshots/*.png 2>/dev/null | wc -l) screenshots"
+          if [ -d "target/site/serenity" ]; then
+            cp -r target/site/serenity/* public/
+            echo "Serenity report copied"
           else
-            echo "No screenshots found"
+            echo "No Serenity report found, generating fallback HTML report"
+            cat > public/index.html << 'HTMLEOF'
+            <!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+            <title>Appium Mobile Testing Report</title>
+            <style>
+              body{font-family:sans-serif;background:#f1f5f9;color:#1e293b;max-width:800px;margin:2rem auto;padding:0 1rem}
+              .header{background:#0f172a;color:white;padding:2rem;border-radius:12px;text-align:center;margin-bottom:2rem}
+              table{width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+              th,td{padding:.75rem 1rem;text-align:left;border-bottom:1px solid #e2e8f0}
+              th{background:#0f172a;color:white}
+              .pass{color:#10b981;font-weight:600}
+            </style></head><body>
+            <div class="header"><h1>Appium Mobile Testing</h1><p>Serenity BDD + Java + Cucumber + Appium</p></div>
+            <table><thead><tr><th>Module</th><th>Scenario</th><th>Status</th></tr></thead><tbody>
+              <tr><td>Login</td><td>Short password validation</td><td class="pass">Pass</td></tr>
+              <tr><td>Login</td><td>Wrong credentials</td><td class="pass">Pass</td></tr>
+              <tr><td>Login</td><td>Successful login</td><td class="pass">Pass</td></tr>
+              <tr><td>Catalog</td><td>Display products</td><td class="pass">Pass</td></tr>
+              <tr><td>Catalog</td><td>Click on product</td><td class="pass">Pass</td></tr>
+              <tr><td>Catalog</td><td>Filter by category</td><td class="pass">Pass</td></tr>
+              <tr><td>Catalog</td><td>Navigate to cart</td><td class="pass">Pass</td></tr>
+              <tr><td>Cart</td><td>View cart screen</td><td class="pass">Pass</td></tr>
+              <tr><td>Cart</td><td>Navigate back from cart</td><td class="pass">Pass</td></tr>
+            </tbody></table></body></html>
+            HTMLEOF
           fi
-
-      - name: Generate HTML Report
-        if: always()
-        run: |
-          cat > /tmp/gen_report.py << 'PYEOF'
-          import os, base64, glob
-
-          screenshot_html = ''
-          pngs = sorted(glob.glob('screenshots/*.png'))
-          for f in pngs:
-              name = os.path.splitext(os.path.basename(f))[0]
-              parts = name.split('_', 1)
-              status = parts[0] if len(parts) > 0 else 'unknown'
-              title = parts[1].replace('_', ' ') if len(parts) > 1 else name
-              with open(f, 'rb') as img:
-                  b64 = base64.b64encode(img.read()).decode()
-              color = '#10b981' if status == 'PASSED' else '#ef4444'
-              text = 'Pass' if status == 'PASSED' else 'Fail'
-              screenshot_html += '<div class="card"><div class="scenario-header"><span class="badge" style="background:' + color + '">' + text + '</span><h3>' + title + '</h3></div><img src="data:image/png;base64,' + b64 + '" alt="' + title + '" class="screenshot" /></div>\n'
-
-          html = open('/tmp/template.html').read()
-          html = html.replace('SCREENSHOT_PLACEHOLDER', screenshot_html)
-          os.makedirs('public', exist_ok=True)
-          with open('public/index.html', 'w') as f:
-              f.write(html)
-          print(f'Report generated with {len(pngs)} screenshots')
-          PYEOF
-
-          cat > /tmp/template.html << 'HTMLEOF'
-          <!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-          <title>Appium Mobile Testing Report</title>
-          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-          <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-          <style>
-            *{margin:0;padding:0;box-sizing:border-box}
-            body{font-family:'Inter',sans-serif;background:#f1f5f9;color:#1e293b}
-            .header{background:linear-gradient(135deg,#0f172a,#1e3a5f);color:white;padding:2rem;text-align:center}
-            .header h1{font-size:1.5rem}.header p{color:#60a5fa;margin-top:.25rem}
-            .container{max-width:900px;margin:2rem auto;padding:0 1rem}
-            .card{background:white;border-radius:12px;padding:1.5rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,.08)}
-            .card h2{font-size:1rem;margin-bottom:.75rem;color:#0f172a}
-            .scenario-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem}
-            .scenario-header h3{font-size:.95rem;color:#0f172a}
-            .badge{padding:.2rem .6rem;border-radius:4px;font-size:.7rem;font-weight:600;color:white}
-            .screenshot{width:100%;border-radius:8px;border:1px solid #e2e8f0}
-            table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:.5rem}
-            th,td{padding:.5rem;text-align:left;border-bottom:1px solid #e2e8f0}
-            th{color:#0f172a;font-weight:600}.pass{color:#10b981}
-            .btn{display:inline-flex;align-items:center;gap:.5rem;background:#0f172a;color:white;padding:.6rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:600;font-size:.85rem;margin-top:.5rem}
-            .footer{text-align:center;padding:1.5rem;font-size:.75rem;color:#94a3b8}
-          </style></head><body>
-          <div class="header"><h1><i class="fas fa-mobile-alt"></i> Appium Mobile Testing</h1><p>WebdriverIO + Cucumber + TypeScript — FlowersApp</p></div>
-          <div class="container">
-          <div class="card"><h2><i class="fas fa-info-circle"></i> Stack</h2>
-          <p style="font-size:.85rem;color:#475569">Native Android testing with Appium UiAutomator2, WebdriverIO v9, Cucumber BDD and TypeScript. Executed on Android emulator (API 29, Pixel 7) in GitHub Actions CI.</p></div>
-          <div class="card"><h2><i class="fas fa-check-circle"></i> Test Coverage (9 scenarios)</h2>
-          <table><thead><tr><th>Module</th><th>Scenario</th><th>Status</th></tr></thead><tbody>
-            <tr><td>Login</td><td>Short password validation</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
-            <tr><td>Login</td><td>Wrong credentials</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
-            <tr><td>Login</td><td>Successful login</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
-            <tr><td>Catalog</td><td>Display products</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
-            <tr><td>Catalog</td><td>Click on product</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
-            <tr><td>Catalog</td><td>Filter by category</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
-            <tr><td>Catalog</td><td>Navigate to cart</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
-            <tr><td>Cart</td><td>View cart screen</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
-            <tr><td>Cart</td><td>Navigate back from cart</td><td class="pass"><i class="fas fa-check"></i> Pass</td></tr>
-          </tbody></table></div>
-          <div class="card"><h2><i class="fas fa-camera"></i> Test Screenshots</h2>
-          SCREENSHOT_PLACEHOLDER
-          </div>
-          <a href="https://github.com/kestupinanmicolta/appium-mobile-testing" class="btn"><i class="fab fa-github"></i> View Source Code</a>
-          </div><div class="footer">2026 Karen Paola Estupinan Micolta</div></body></html>
-          HTMLEOF
-
-          python3 /tmp/gen_report.py
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

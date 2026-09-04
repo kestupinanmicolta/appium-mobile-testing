@@ -1,49 +1,55 @@
 # Appium Mobile Testing
 
-Testing móvil con **Appium**, **WebdriverIO** y **Cucumber** para la app Android **FlowersApp** (FlorAbby). Incluye 9 escenarios BDD que cubren login, catálogo y carrito.
+Testing móvil con **Serenity BDD**, **Appium**, **Cucumber** y **Java** para la app Android **FlowersApp**. Incluye 9 escenarios BDD que cubren login, catálogo y carrito, con reporte HTML generado automáticamente.
 
 ## Tecnologías
 
+- **Serenity BDD** — framework de reportes y Screenplay pattern
 - **Appium 2** + UiAutomator2 — testing móvil nativo Android
-- **WebdriverIO v9** — test runner y cliente WebDriver
 - **Cucumber** — BDD con Gherkin
-- **TypeScript** — tipado estático
+- **Java 17** + Maven
+- **Selenium WebDriver** — integración con Appium
 
 ## Requisitos
 
-- Node.js 18+
+- Java 17+
+- Maven 3.6+
 - Appium Server (puerto 4723)
-- Android SDK con emulador o dispositivo físico
+- Android SDK con dispositivo físico o emulador
 - Driver UiAutomator2 (`appium driver install uiautomator2`)
 
-## Instalación
+## Estructura
 
-```bash
-npm install
+```
+├── src/
+│   └── test/
+│       ├── java/
+│       │   ├── runners/
+│       │   │   └── TestRunner.java        # Runner Serenity + Cucumber
+│       │   └── steps/
+│       │       └── FlowersAppSteps.java   # Step definitions (Appium + Screenplay)
+│       └── resources/
+│           └── features/
+│               └── flowersapp.feature     # 9 escenarios BDD
+├── src/main/resources/
+│   └── serenity.conf                      # Configuración Serenity
+├── pom.xml                                # Dependencias Maven
+├── screenshots/                           # Screenshots de cada escenario
+└── .github/workflows/
+    └── test-and-deploy.yml               # CI/CD + GitHub Pages
 ```
 
 ## Ejecución
 
 ```bash
 # Asegurar que Appium esté corriendo en puerto 4723
-npx appium &
+appium &
 
-# Ejecutar todos los tests
-npm test
-```
+# Ejecutar tests + generar reporte
+mvn clean verify
 
-## Estrucura
-
-```
-├── features/
-│   ├── flowersapp.feature          # 9 escenarios BDD
-│   └── step-definitions/
-│       └── steps.ts                # Implementación de steps
-├── wdio.conf.ts                    # Configuración WebdriverIO
-├── tsconfig.json                   # Configuración TypeScript
-├── package.json
-└── .github/workflows/
-    └── test-and-deploy.yml         # CI/CD + GitHub Pages
+# Ver reporte
+open target/site/serenity/index.html
 ```
 
 ## Escenarios
@@ -64,4 +70,4 @@ npm test
 
 **Ver en vivo**: https://kestupinanmicolta.github.io/appium-mobile-testing/
 
-<!-- lastupdate: 2026-08-30 -->
+<!-- lastupdate: 2026-09-01 -->

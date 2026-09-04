@@ -1,5 +1,19 @@
-node_modules/
-dist/
+# Build
 target/
-*.log
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temp
+*.tmp
+*.txt
